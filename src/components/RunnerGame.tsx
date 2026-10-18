@@ -15,344 +15,81 @@ type LeaderboardEntry = { name: string; score: number };
 const LEADERBOARD_KEY = "runner-leaderboard-v1";
 const LEADERBOARD_LIMIT = 6;
 
-// Game tuning and sprite coordinates mirror Chromium's T-Rex runner (components/neterror/resources/dino_game,
-// BSD licence) so it plays like the original. Units are the original 1x pixels at 60fps.
+// A small geometric side-scroller: a block-bodied runner on a dark strip, hopping spikes, stepping onto raised
+// platforms and ducking under floating bars. Everything is vector shapes in one monochrome palette.
+// Units are css px and seconds; "height" means pixels above the ground line.
 const HEIGHT = 150;
-const BOTTOM_PAD = 10;
-const MS_PER_FRAME = 1000 / 60;
-const SPEED = 6;
-const MAX_SPEED = 13;
-const ACCELERATION = 0.001;
-const GAP_COEFFICIENT = 0.6;
-const MAX_GAP_COEFFICIENT = 1.5;
-const MAX_OBSTACLE_LENGTH = 3;
-const MAX_DUPLICATION = 2;
-const CLEAR_TIME = 3000;
-const SPEED_DROP_COEFFICIENT = 3;
-const SCORE_COEFFICIENT = 0.025;
-const INVERT_DISTANCE = 700;
-const CLOUD = { x: 86, y: 2, x2: 166, y2: 2, width: 46, height: 14 };
-const CLOUD_SPEED = 0.2;
-const CLOUD_FREQUENCY = 0.5;
-const MAX_CLOUDS = 6;
-const MIN_CLOUD_GAP = 100;
-const MAX_CLOUD_GAP = 400;
-const MAX_SKY = 30;
-const MIN_SKY = 71;
-const HORIZON = { x: 2, y: 54, x2: 2, y2: 104, width: 600, height: 12, yPos: 127 };
-// T-Rex sprite and hitboxes: not drawn right now (the pixel runner below replaced it), kept so it can be
-// switched back later. To restore it, use TREX/TREX_*_BOXES in place of PLAYER/PLAYER_*_BOXES and re-enable
-// the T-Rex draw call in draw().
-const TREX = {
-  sprite: { x: 848, y: 2, x2: 1678, y2: 2 },
-  startX: 50,
-  width: 44,
-  height: 47,
-  widthDuck: 59,
-  heightDuck: 25,
-  gravity: 0.6,
-  initialJumpVelocity: -10,
-  dropVelocity: -5,
-  minJumpHeight: 30,
-  maxJumpHeight: 30,
-};
-type Box = { x: number; y: number; width: number; height: number };
-type SpriteBase = { x: number; y: number; x2: number; y2: number };
-const TREX_RUN_BOXES: Box[] = [
-  { x: 22, y: 0, width: 17, height: 16 },
-  { x: 1, y: 18, width: 30, height: 9 },
-  { x: 10, y: 35, width: 14, height: 8 },
-  { x: 1, y: 24, width: 29, height: 5 },
-  { x: 5, y: 30, width: 21, height: 4 },
-  { x: 9, y: 34, width: 15, height: 4 },
-];
-const TREX_DUCK_BOXES: Box[] = [{ x: 1, y: 18, width: 55, height: 25 }];
+const GROUND = 118; // y of the ground line
+const PLAYER_X = 64; // fixed screen x of the runner's left edge
+const PLAYER_W = 22, PLAYER_H = 26, DUCK_W = 28, DUCK_H = 15;
+const GRAVITY = 2300;
+const JUMP_SPEED = 560; // initial upward speed; apex is ~68px
+const SHORT_HOP_SPEED = 220; // releasing jump early cuts upward speed to this
+const FAST_FALL = 2.4; // gravity multiplier while holding duck in mid-air
+const JUMP_BUFFER = 0.1; // seconds a too-early jump press is remembered
+const START_SPEED = 280, END_SPEED = 620, NARROW_END_SPEED = 520, SPEED_PER_POINT = 0.34;
+const SCORE_PER_PX = 0.04;
+const FIRST_OBSTACLE_AT = 160; // px beyond the right edge where the first pattern starts
+const SPIKE_W = 14, SPIKE_H = 16, BIG_SPIKE_W = 22, BIG_SPIKE_H = 34;
+const BAR_W = 56, BAR_BOTTOM = 17, BAR_THICK = 8; // a standing runner hits it, a ducking runner passes under
+const RESTART_DELAY = 700; // ms after a crash before the keyboard can restart the run
+const STEP = 1 / 120; // physics sub-step, so a fast game can't tunnel through an edge
 
-// Pixel runner: hand-drawn frames where each "#" is a 2x2 cell, in the same grey as Chrome's sprites so the
-// theme/night inversion applies to it too. Physics match the T-Rex's.
-const PIXEL = 2;
-const PLAYER_FRAMES = {
-  stand: [
-    "....#####.....",
-    "...#######....",
-    "...######.#...",
-    "....#######...",
-    "....######....",
-    ".....####.....",
-    "......##......",
-    ".....####.....",
-    "....######....",
-    "....#.##.#....",
-    "....#.##.#....",
-    "....#.##.#....",
-    ".....####.....",
-    ".....#..#.....",
-    ".....#..#.....",
-    ".....#..#.....",
-    ".....#..#.....",
-    ".....##.##....",
-  ],
-  run1: [
-    "....#####.....",
-    "...#######....",
-    "...######.#...",
-    "....#######...",
-    "....######....",
-    ".....####.....",
-    "......##......",
-    ".....####.##..",
-    "....######.#..",
-    "...#.####.....",
-    "..#..####.....",
-    "..#..####.....",
-    ".....####.....",
-    "....##..##....",
-    "...##....#....",
-    "..##.....#....",
-    ".#.......#....",
-    ".#.......##...",
-  ],
-  run2: [
-    "....#####.....",
-    "...#######....",
-    "...######.#...",
-    "....#######...",
-    "....######....",
-    ".....####.....",
-    "......##......",
-    ".....####.....",
-    "....#####.....",
-    ".....####.....",
-    ".....####.#...",
-    ".....#####....",
-    ".....####.....",
-    ".....#.##.....",
-    "......#.#.....",
-    ".....#..#.....",
-    "....#...#.....",
-    "....##..##....",
-  ],
-  jump: [
-    "....#####.....",
-    "...#######....",
-    "...######.#...",
-    "....#######...",
-    "....######....",
-    ".....####.....",
-    "..#...##...#..",
-    "...#.####.#...",
-    "....######....",
-    ".....####.....",
-    ".....####.....",
-    ".....####.....",
-    ".....####.....",
-    "....##..##....",
-    "...##...##....",
-    "...#....#.....",
-    "....#....#....",
-    "..............",
-  ],
-  crash: [
-    "....#####.....",
-    "...#######....",
-    "...#####.#.#..",
-    "....#####.#...",
-    "....####.#.#..",
-    ".....####.....",
-    "......##......",
-    "..#..####..#..",
-    "...########...",
-    ".....####.....",
-    ".....####.....",
-    ".....####.....",
-    ".....####.....",
-    ".....#..#.....",
-    ".....#..#.....",
-    ".....#..#.....",
-    ".....#..#.....",
-    "....##.##.....",
-  ],
-  duck1: [
-    "............#####.",
-    "...........#######",
-    "...........######.",
-    "...#########.####.",
-    "..###########.....",
-    "..###########.....",
-    "..####....###.....",
-    "...##.##....##....",
-    "..##...##...#.....",
-    ".##.....##........",
-    ".###....###.......",
-    "..................",
-  ],
-  duck2: [
-    "............#####.",
-    "...........#######",
-    "...........######.",
-    "...#########.####.",
-    "..###########.....",
-    "..###########.....",
-    "..####...##.......",
-    "...####..###......",
-    "....##.##.........",
-    "....##..##........",
-    "....###.###.......",
-    "..................",
-  ],
-} satisfies Record<string, string[]>;
-type PlayerFrame = keyof typeof PLAYER_FRAMES;
-const PLAYER = {
-  startX: 50,
-  width: 28,
-  height: 36,
-  widthDuck: 36,
-  heightDuck: 24,
-  gravity: 0.6,
-  initialJumpVelocity: -10,
-  dropVelocity: -5,
-  minJumpHeight: 30,
-  maxJumpHeight: 30,
-};
-const PLAYER_RUN_BOXES: Box[] = [
-  { x: 8, y: 0, width: 14, height: 12 },
-  { x: 8, y: 12, width: 12, height: 14 },
-  { x: 6, y: 26, width: 16, height: 10 },
+// Palette (the strip is dark in both site themes, so these don't read the theme).
+const INK = "#ececec", SOFT = "#c9c9c9", MID = "#8c8c8c", DIM = "#4a4a4a", PANEL = "#1b1b1d", VOID = "#0f0f10";
+
+type Piece =
+  | { kind: "spike"; x: number; n: number; big: boolean; base: number }
+  | { kind: "plat"; x: number; w: number; h: number }
+  | { kind: "bar"; x: number };
+type Item =
+  | { kind: "spike"; x: number; w: number; h: number; base: number; n: number; big: boolean }
+  | { kind: "plat"; x: number; w: number; h: number }
+  | { kind: "bar"; x: number; w: number };
+type Particle = { x: number; y: number; vx: number; vy: number; life: number; size: number };
+
+const spike = (x: number, n = 1, big = false, base = 0): Piece => ({ kind: "spike", x, n, big, base });
+const plat = (x: number, w: number, h: number): Piece => ({ kind: "plat", x, w, h });
+const bar = (x: number): Piece => ({ kind: "bar", x });
+
+// Obstacle patterns, introduced as the score climbs. `br` is a breathing distance that grows with speed, so
+// the space between two jumps always leaves time to land and react. Pattern ids stop the same one repeating.
+const PATTERNS: { id: string; from: number; build: (br: number) => Piece[] }[] = [
+  { id: "single", from: 0, build: () => [spike(0)] },
+  { id: "twin", from: 30, build: (br) => [spike(0), spike(SPIKE_W + br)] },
+  { id: "double", from: 70, build: () => [spike(0, 2)] },
+  { id: "hop", from: 100, build: (br) => [spike(0), plat(SPIKE_W + br, 96, 24)] },
+  { id: "large", from: 150, build: () => [spike(0, 1, true)] },
+  {
+    id: "perch", from: 190,
+    build: (br) => { const at = br * 0.85 + 8; return [plat(0, at + SPIKE_W + 36, 26), spike(at, 1, false, 26)]; },
+  },
+  {
+    id: "hopPerch", from: 230,
+    build: (br) => {
+      const at = br * 0.85 + 8, start = SPIKE_W + br;
+      return [spike(0), plat(start, at + SPIKE_W + 30, 24), spike(start + at, 1, false, 24)];
+    },
+  },
+  { id: "bar", from: 260, build: () => [bar(0)] },
+  {
+    id: "largeStep", from: 290,
+    build: (br) => [spike(0, 1, true), plat(BIG_SPIKE_W + br, 90, 28), spike(BIG_SPIKE_W + br + 90 + br * 0.9)],
+  },
+  { id: "triple", from: 330, build: () => [spike(0, 3)] },
+  { id: "largeSmall", from: 370, build: () => [spike(0, 1, true), spike(BIG_SPIKE_W)] },
+  {
+    id: "stairs", from: 410,
+    build: (br) => { const first = br + 60; return [plat(0, first, 22), plat(first, 84, 42)]; },
+  },
+  { id: "barSpike", from: 450, build: (br) => [bar(0), spike(BAR_W + br)] },
+  { id: "spikeBar", from: 490, build: (br) => [spike(0), bar(SPIKE_W + br)] },
 ];
-// Relative to the ducking pose's top-left (which sits heightDuck above the ground).
-const PLAYER_DUCK_BOXES: Box[] = [
-  { x: 22, y: 0, width: 14, height: 8 },
-  { x: 4, y: 6, width: 24, height: 10 },
-  { x: 2, y: 14, width: 20, height: 8 },
-];
-type ObstacleType = {
-  name: string;
-  /** Chrome sprite-sheet position (cacti / pterodactyl). */
-  sprite?: SpriteBase;
-  /** Pixel-art frames ("#" = 2x2 cell) used instead of the sprite sheet. */
-  art?: string[][];
-  width: number;
-  height: number;
-  y: number | number[];
-  multipleSpeed: number;
-  minGap: number;
-  minSpeed: number;
-  speedOffset?: number;
-  frames: number;
-  frameRate: number;
-  boxes: Box[];
-};
-// Chrome's cacti and pterodactyl: not used right now (the UI/UX obstacles below replaced them), kept so they
-// can be switched back later by spawning from CHROME_OBSTACLES instead of OBSTACLES.
-const CHROME_OBSTACLES: ObstacleType[] = [
-  {
-    name: "cactusSmall", sprite: { x: 228, y: 2, x2: 446, y2: 2 }, width: 17, height: 35, y: 105, multipleSpeed: 4, minGap: 120, minSpeed: 0, frames: 1, frameRate: 0,
-    boxes: [{ x: 0, y: 7, width: 5, height: 27 }, { x: 4, y: 0, width: 6, height: 34 }, { x: 10, y: 4, width: 7, height: 14 }],
-  },
-  {
-    name: "cactusLarge", sprite: { x: 332, y: 2, x2: 652, y2: 2 }, width: 25, height: 50, y: 90, multipleSpeed: 7, minGap: 120, minSpeed: 0, frames: 1, frameRate: 0,
-    boxes: [{ x: 0, y: 12, width: 7, height: 38 }, { x: 8, y: 0, width: 7, height: 49 }, { x: 13, y: 10, width: 10, height: 38 }],
-  },
-  {
-    name: "pterodactyl", sprite: { x: 134, y: 2, x2: 260, y2: 2 }, width: 46, height: 40, y: [100, 75, 50], multipleSpeed: 999, minGap: 150, minSpeed: 8.5, speedOffset: 0.8, frames: 2, frameRate: 1000 / 6,
-    boxes: [{ x: 15, y: 15, width: 16, height: 5 }, { x: 18, y: 21, width: 24, height: 6 }, { x: 2, y: 14, width: 4, height: 3 }, { x: 6, y: 10, width: 4, height: 7 }, { x: 10, y: 8, width: 6, height: 9 }],
-  },
-];
-// UI/UX obstacles. Ground: a wireframe card (small) and a stack of sticky notes (tall), which can come in groups
-// like cacti. Air: a client-feedback bubble with bouncing typing dots, at the pterodactyl's three heights
-// (low: jump it, middle: duck under it, high: passes overhead). Widths include a gap so groups stay readable.
-const OBSTACLES: ObstacleType[] = [
-  {
-    name: "wireframeCard", width: 32, height: 34, y: 106, multipleSpeed: 4, minGap: 120, minSpeed: 0, frames: 1, frameRate: 0,
-    art: [[
-        "##############",
-        "#............#",
-        "#.##########.#",
-        "#.##......##.#",
-        "#.#.#....#.#.#",
-        "#.#..#..#..#.#",
-        "#.#...##...#.#",
-        "#.#..#..#..#.#",
-        "#.#.#....#.#.#",
-        "#.##......##.#",
-        "#.##########.#",
-        "#............#",
-        "#.########...#",
-        "#............#",
-        "#.#####......#",
-        "#............#",
-        "##############",
-      ]],
-    boxes: [{ x: 1, y: 1, width: 26, height: 32 }],
-  },
-  {
-    name: "stickyNotes", width: 30, height: 46, y: 94, multipleSpeed: 7, minGap: 120, minSpeed: 0, frames: 1, frameRate: 0,
-    art: [[
-        "..##########.",
-        "..##########.",
-        "..##.....###.",
-        "..##########.",
-        "..##.......#.",
-        "..#########..",
-        "..########...",
-        ".##########..",
-        ".##########..",
-        ".##......##..",
-        ".##########..",
-        ".##.....###..",
-        ".##########..",
-        ".##########..",
-        "..##########.",
-        "..##########.",
-        "..##.....###.",
-        "..##########.",
-        "..##......##.",
-        "..##########.",
-        ".##########..",
-        ".##.......#..",
-        ".##########..",
-      ]],
-    boxes: [{ x: 3, y: 1, width: 22, height: 44 }],
-  },
-  {
-    name: "feedbackBubble", width: 46, height: 30, y: [105, 82, 50], multipleSpeed: 999, minGap: 150, minSpeed: 8.5, speedOffset: 0.8, frames: 2, frameRate: 1000 / 4,
-    art: [[
-        "....##############....",
-        "..##################..",
-        ".####################.",
-        "######################",
-        "######################",
-        "####..####..####..####",
-        "####..####..####..####",
-        "######################",
-        "######################",
-        ".####################.",
-        "..##################..",
-        "....##############....",
-        "......####............",
-        ".....###..............",
-        "....##................",
-      ], [
-        "....##############....",
-        "..##################..",
-        ".####################.",
-        "######################",
-        "##########..##########",
-        "####..####..####..####",
-        "####..##########..####",
-        "######################",
-        "######################",
-        ".####################.",
-        "..##################..",
-        "....##############....",
-        "......####............",
-        ".....###..............",
-        "....##................",
-      ]],
-    boxes: [{ x: 2, y: 2, width: 40, height: 20 }, { x: 8, y: 22, width: 8, height: 6 }],
-  },
-];
-const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+const pieceWidth = (piece: Piece) =>
+  piece.kind === "spike" ? piece.n * (piece.big ? BIG_SPIKE_W : SPIKE_W) : piece.kind === "plat" ? piece.w : BAR_W;
+const itemWidth = (item: Item) => (item.kind === "spike" ? item.w * item.n : item.w);
+const randomBetween = (min: number, max: number) => min + Math.random() * (max - min);
 
 function isLeaderboardEntry(value: unknown): value is LeaderboardEntry {
   if (typeof value !== "object" || value === null) return false;
@@ -373,6 +110,8 @@ export function RunnerGame() {
   const restartRef = useRef<() => void>(() => {});
   const jumpRef = useRef<() => void>(() => {});
   const releaseRef = useRef<() => void>(() => {});
+  const duckRef = useRef<(down: boolean) => void>(() => {});
+  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     try {
@@ -397,83 +136,31 @@ export function RunnerGame() {
     const ctx = canvas.getContext("2d")!;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // Sprite sheets from Chromium's T-Rex runner (BSD licence); positions below are its 1x coordinates.
-    const sheets = { 1: new Image(), 2: new Image() } as const;
-    sheets[1].src = "/runner/offline-sprite-1x.png";
-    sheets[2].src = "/runner/offline-sprite-2x.png";
-    let sheetScale: 1 | 2 = 1;
-
     let width = 0, dpr = 1;
-    const groundY = HEIGHT - PLAYER.height - BOTTOM_PAD;
+    let running = false, crashed = false, crashedAt = 0, raf = 0, last = 0;
 
-    // Pre-render pixel art (runner frames and UI/UX obstacles) at device resolution so each draw is one crisp drawImage.
-    const renderArt = (rows: string[]) => {
-      const frame = document.createElement("canvas");
-      const cell = PIXEL * dpr;
-      frame.width = Math.round(rows[0]!.length * cell);
-      frame.height = Math.round(rows.length * cell);
-      const frameCtx = frame.getContext("2d")!;
-      frameCtx.fillStyle = "#535353";
-      rows.forEach((row, y) => {
-        for (let x = 0; x < row.length; x++) if (row[x] === "#") frameCtx.fillRect(Math.round(x * cell), Math.round(y * cell), Math.ceil(cell), Math.ceil(cell));
-      });
-      return frame;
-    };
-    let playerFrames = {} as Record<PlayerFrame, HTMLCanvasElement>;
-    let obstacleArt = new Map<string, HTMLCanvasElement[]>();
-    const buildPlayerFrames = () => {
-      const built = {} as Record<PlayerFrame, HTMLCanvasElement>;
-      for (const [name, rows] of Object.entries(PLAYER_FRAMES) as [PlayerFrame, string[]][]) built[name] = renderArt(rows);
-      playerFrames = built;
-      obstacleArt = new Map(OBSTACLES.filter((type) => type.art).map((type) => [type.name, type.art!.map(renderArt)]));
-    };
-
-    type Obstacle = { type: ObstacleType; x: number; y: number; size: number; speedOffset: number; gap: number; frame: number; frameTime: number };
-    type Cloud = { x: number; y: number; gap: number };
-    let playerY = groundY, jumpVelocity = 0, jumping = false, ducking = false, speedDrop = false, reachedMinHeight = false;
-    let runFrame = 0, runTime = 0;
-    let speed = SPEED, distance = 0, runningTime = 0, shownScore = -1;
-    let obstacles: Obstacle[] = [], history: string[] = [], clouds: Cloud[] = [];
-    let groundOffset = 0, groundBumps: boolean[] = [];
-    const fillGround = () => { while (groundBumps.length < Math.ceil(width / HORIZON.width) + 1) groundBumps.push(Math.random() > 0.5); };
-    let night = false, nextInvertAt = INVERT_DISTANCE;
-    let running = false, crashed = false, raf = 0, last = 0;
+    // Runner state. `height` is the feet's height above the ground (platform tops count as ground).
+    let height = 0, vy = 0, grounded = true, downHeld = false, ducking = false, jumpBuffer = 0, squash = 0, runPhase = 0;
+    let speed = START_SPEED, points = 0, shownScore = -1;
+    let items: Item[] = [], particles: Particle[] = [];
+    let cursor = 0, lastPattern = "", groundOffset = 0, stars: { x: number; y: number; r: number }[] = [];
 
     const size = () => {
       dpr = Math.min(devicePixelRatio || 1, 2);
-      sheetScale = dpr > 1 ? 2 : 1;
       width = canvas.clientWidth;
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(HEIGHT * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.imageSmoothingEnabled = false;
-      buildPlayerFrames();
-      fillGround();
+      stars = Array.from({ length: Math.round(width / 40) }, () => ({ x: Math.random() * width, y: randomBetween(8, GROUND - 30), r: Math.random() * 0.8 + 0.4 }));
       draw();
     };
 
-    // Draw part of a sprite (offset dx within it, in 1x pixels) at a logical position, snapped to device pixels
-    // so it stays crisp. The 2x sheet has its own layout, so each sprite carries both base positions.
-    const sprite = (base: SpriteBase, dx: number, sw: number, sh: number, x: number, y: number) => {
-      const sheet = sheets[sheetScale];
-      if (!sheet.complete || !sheet.naturalWidth) return;
-      const sx = sheetScale === 2 ? base.x2 + dx * 2 : base.x + dx;
-      const sy = sheetScale === 2 ? base.y2 : base.y;
-      const snap = (value: number) => Math.round(value * dpr) / dpr;
-      ctx.drawImage(sheet, sx, sy, sw * sheetScale, sh * sheetScale, snap(x), snap(y), sw, sh);
-    };
-
-    const setNight = (value: boolean) => {
-      night = value;
-      canvas.setAttribute("data-night", String(value));
-    };
+    const maxSpeed = () => (width < 520 ? NARROW_END_SPEED : END_SPEED);
 
     const reset = () => {
-      playerY = groundY; jumpVelocity = 0; jumping = false; ducking = false; speedDrop = false; reachedMinHeight = false;
-      speed = SPEED; distance = 0; runningTime = 0; shownScore = -1;
-      obstacles = []; history = []; clouds = [{ x: width * 0.6, y: randomInt(MAX_SKY, MIN_SKY), gap: randomInt(MIN_CLOUD_GAP, MAX_CLOUD_GAP) }];
-      groundOffset = 0; groundBumps = []; fillGround();
-      setNight(false); nextInvertAt = INVERT_DISTANCE;
+      height = 0; vy = 0; grounded = true; ducking = false; jumpBuffer = 0; squash = 0; runPhase = 0;
+      speed = START_SPEED; points = 0; shownScore = -1;
+      items = []; particles = []; cursor = width + FIRST_OBSTACLE_AT; lastPattern = ""; groundOffset = 0;
       crashed = false; running = true; startedRef.current = true;
       setStarted(true); setOver(false); setScore(0); setPlayerName(""); setScoreSaved(false);
       last = performance.now();
@@ -482,154 +169,232 @@ export function RunnerGame() {
     };
 
     const startJump = () => {
-      if (!running || jumping || ducking) return;
-      jumping = true; reachedMinHeight = false; speedDrop = false;
-      jumpVelocity = PLAYER.initialJumpVelocity - speed / 10;
+      if (!running) return;
+      if (grounded) { vy = JUMP_SPEED; grounded = false; ducking = false; squash = 0; }
+      else jumpBuffer = JUMP_BUFFER;
     };
     const endJump = () => {
-      if (jumping && reachedMinHeight && jumpVelocity < PLAYER.dropVelocity) jumpVelocity = PLAYER.dropVelocity;
+      if (vy > SHORT_HOP_SPEED) vy = SHORT_HOP_SPEED;
     };
-    const setDuck = (down: boolean) => {
-      if (!running) return;
-      if (down && jumping) { speedDrop = true; jumpVelocity = 1; return; }
-      ducking = down && !jumping;
-    };
+    const setDuck = (down: boolean) => { downHeld = down; };
     restartRef.current = reset;
     jumpRef.current = startJump;
     releaseRef.current = endJump;
+    duckRef.current = setDuck;
 
-    const addObstacle = () => {
-      const candidates = OBSTACLES.filter((type) => speed >= type.minSpeed && history.filter((name) => name === type.name).length < MAX_DUPLICATION);
-      const type = candidates[randomInt(0, candidates.length - 1)] ?? OBSTACLES[0]!;
-      const size = speed > type.multipleSpeed ? randomInt(1, MAX_OBSTACLE_LENGTH) : 1;
-      const y = Array.isArray(type.y) ? type.y[randomInt(0, type.y.length - 1)]! : type.y;
-      const minGap = Math.round(type.width * size * speed + type.minGap * GAP_COEFFICIENT);
-      const gap = randomInt(minGap, Math.round(minGap * MAX_GAP_COEFFICIENT));
-      const speedOffset = type.speedOffset ? (Math.random() > 0.5 ? type.speedOffset : -type.speedOffset) : 0;
-      obstacles.push({ type, x: width, y, size, speedOffset, gap, frame: 0, frameTime: 0 });
-      history = [type.name, ...history].slice(0, MAX_DUPLICATION);
+    const spawn = () => {
+      const unlocked = PATTERNS.filter((pattern) => pattern.from <= points);
+      // Never repeat the previous pattern, unless it is the only one unlocked yet.
+      const eligible = unlocked.length > 1 ? unlocked.filter((pattern) => pattern.id !== lastPattern) : unlocked;
+      // The three newest patterns get double weight so a fresh tier shows up quickly.
+      const pool = eligible.flatMap((pattern, index) => (index >= eligible.length - 3 ? [pattern, pattern] : [pattern]));
+      const pattern = pool[Math.floor(Math.random() * pool.length)]!;
+      lastPattern = pattern.id;
+      const breathing = speed * 0.5 + 46;
+      const x0 = Math.max(cursor, width + 8);
+      let extent = 0;
+      for (const piece of pattern.build(breathing)) {
+        const x = x0 + piece.x;
+        extent = Math.max(extent, piece.x + pieceWidth(piece));
+        if (piece.kind === "spike") items.push({ kind: "spike", x, w: piece.big ? BIG_SPIKE_W : SPIKE_W, h: piece.big ? BIG_SPIKE_H : SPIKE_H, base: piece.base, n: piece.n, big: piece.big });
+        else if (piece.kind === "plat") items.push({ kind: "plat", x, w: piece.w, h: piece.h });
+        else items.push({ kind: "bar", x, w: BAR_W });
+      }
+      const gap = speed * 0.62 + 70;
+      cursor = x0 + extent + randomBetween(gap, gap * 1.7);
     };
 
-    const duckOffset = PLAYER.height - PLAYER.heightDuck;
-    const playerBoxes = () => ducking
-      ? PLAYER_DUCK_BOXES.map((box) => ({ ...box, x: box.x + PLAYER.startX, y: box.y + playerY + duckOffset }))
-      : PLAYER_RUN_BOXES.map((box) => ({ ...box, x: box.x + PLAYER.startX, y: box.y + playerY }));
-    const obstacleBoxes = (o: Obstacle) => {
-      // Pixel-art obstacles repeat their boxes per item in a group.
-      if (o.type.art) {
-        return Array.from({ length: o.size }, (_, k) => o.type.boxes.map((box) => ({ ...box, x: box.x + o.x + k * o.type.width, y: box.y + o.y }))).flat();
+    const crash = () => {
+      crashed = true; running = false; startedRef.current = false; crashedAt = performance.now();
+      if (!reduceMotion) {
+        const bodyTop = GROUND - height - (ducking ? DUCK_H : PLAYER_H);
+        particles = Array.from({ length: 16 }, () => ({
+          x: PLAYER_X + PLAYER_W / 2, y: bodyTop + 10, vx: randomBetween(-160, 220), vy: randomBetween(-280, 60), life: randomBetween(0.4, 0.8), size: randomBetween(2, 4.5),
+        }));
       }
-      const boxes = o.type.boxes.map((box) => ({ ...box }));
-      if (o.size > 1 && boxes.length >= 3) {
-        boxes[1]!.width = o.type.width * o.size - boxes[0]!.width - boxes[2]!.width;
-        boxes[2]!.x = o.type.width * o.size - boxes[2]!.width;
-      }
-      return boxes.map((box) => ({ ...box, x: box.x + o.x, y: box.y + o.y }));
+      setStarted(false); setOver(true);
     };
-    const hits = (o: Obstacle) => {
-      const tw = ducking ? PLAYER.widthDuck : PLAYER.width;
-      const top = ducking ? playerY + duckOffset : playerY;
-      const ow = o.type.width * o.size;
-      // Cheap bounding-box test (1px inset) first, then the per-sprite boxes like the original.
-      if (!(PLAYER.startX + 1 < o.x + ow - 1 && PLAYER.startX + tw - 1 > o.x + 1 && top + 1 < o.y + o.type.height - 1 && playerY + PLAYER.height - 1 > o.y + 1)) return false;
-      const obstacleParts = obstacleBoxes(o);
-      return playerBoxes().some((a) => obstacleParts.some((b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y));
+
+    // One physics sub-step: scroll the world, move the runner, resolve landings and walls, then test hazards.
+    const step = (dt: number) => {
+      const shift = speed * dt;
+      for (const item of items) item.x -= shift;
+      items = items.filter((item) => item.x + itemWidth(item) > -20);
+      cursor -= shift;
+      groundOffset = (groundOffset - shift) % 44;
+      if (cursor <= width + 8) spawn();
+
+      // Duck only on the ground; in the air the same key drops the runner faster.
+      ducking = downHeld && grounded;
+      const bodyH = ducking ? DUCK_H : PLAYER_H, bodyW = ducking ? DUCK_W : PLAYER_W;
+      const left = PLAYER_X + 2, right = PLAYER_X + bodyW - 2;
+
+      const previous = height;
+      vy -= GRAVITY * (downHeld && !grounded ? FAST_FALL : 1) * dt;
+      height += vy * dt;
+
+      let support = 0;
+      for (const item of items) {
+        if (item.kind !== "plat" || !(item.x < right && item.x + item.w > left)) continue;
+        if (previous >= item.h - 0.5 && height <= item.h) support = Math.max(support, item.h);
+        else if (height < item.h - 3) { crash(); return; } // ran into the platform's side
+      }
+      if (height <= support) {
+        if (!grounded && vy < -200) {
+          squash = 0.12;
+          if (!reduceMotion) for (let i = 0; i < 5; i++) particles.push({ x: PLAYER_X + 6 + i * 3, y: GROUND - support, vx: randomBetween(-90, 20), vy: randomBetween(-70, -20), life: 0.3, size: 2 });
+        }
+        height = support; vy = 0; grounded = true;
+        if (jumpBuffer > 0) { jumpBuffer = 0; vy = JUMP_SPEED; grounded = false; }
+      } else {
+        grounded = false;
+      }
+
+      // Hazards: spikes are a wide low box plus a narrow tall one (a forgiving triangle); bars are a plain box.
+      const feet = height + 1, top = height + bodyH - 3;
+      for (const item of items) {
+        if (item.kind === "spike") {
+          if (!(item.x < right && item.x + item.w * item.n > left)) continue;
+          for (let i = 0; i < item.n; i++) {
+            const sx = item.x + i * item.w;
+            const lowBox = sx + item.w * 0.12 < right && sx + item.w * 0.88 > left && feet < item.base + item.h * 0.4 && top > item.base;
+            const tallBox = sx + item.w * 0.32 < right && sx + item.w * 0.68 > left && feet < item.base + item.h * 0.85 && top > item.base;
+            if (lowBox || tallBox) { crash(); return; }
+          }
+        } else if (item.kind === "bar") {
+          if (item.x < right && item.x + item.w > left && feet < BAR_BOTTOM + BAR_THICK && top > BAR_BOTTOM) { crash(); return; }
+        }
+      }
     };
 
     function update(delta: number) {
-      const frames = delta / MS_PER_FRAME;
-      runningTime += delta;
+      const dt = Math.min(delta, 50) / 1000;
+      points += speed * dt * SCORE_PER_PX;
+      speed = Math.min(maxSpeed(), START_SPEED + points * SPEED_PER_POINT);
+      jumpBuffer = Math.max(0, jumpBuffer - dt);
+      squash = Math.max(0, squash - dt);
+      runPhase += dt * (6 + speed / 60);
+      const steps = Math.max(1, Math.ceil(dt / STEP));
+      for (let i = 0; i < steps && running; i++) step(dt / steps);
+      const shown = Math.floor(points);
+      if (shown !== shownScore) { shownScore = shown; setScore(shown); }
+    }
 
-      // Jump physics (gravity, minimum height before an early release can cut the jump, faster fall when ducking).
-      if (jumping) {
-        playerY += jumpVelocity * frames * (speedDrop ? SPEED_DROP_COEFFICIENT : 1);
-        jumpVelocity += PLAYER.gravity * frames;
-        if (playerY < groundY - PLAYER.minJumpHeight || speedDrop) reachedMinHeight = true;
-        if (playerY < groundY - PLAYER.maxJumpHeight || speedDrop) endJump();
-        if (playerY > groundY) { playerY = groundY; jumping = false; jumpVelocity = 0; speedDrop = false; }
-      }
-      runTime += delta;
-      const frameMs = ducking ? 1000 / 8 : 1000 / 12;
-      if (runTime >= frameMs) { runFrame = 1 - runFrame; runTime %= frameMs; }
-
-      // Ground scrolls with the game; clouds drift slower for parallax.
-      groundOffset -= speed * frames;
-      while (groundOffset <= -HORIZON.width) { groundOffset += HORIZON.width; groundBumps.shift(); fillGround(); }
-      for (const cloud of clouds) cloud.x -= CLOUD_SPEED * frames * (speed / SPEED);
-      clouds = clouds.filter((cloud) => cloud.x > -CLOUD.width);
-      const lastCloud = clouds[clouds.length - 1];
-      if (clouds.length < MAX_CLOUDS && (!lastCloud || width - lastCloud.x > lastCloud.gap) && Math.random() < CLOUD_FREQUENCY) {
-        clouds.push({ x: width, y: randomInt(MAX_SKY, MIN_SKY), gap: randomInt(MIN_CLOUD_GAP, MAX_CLOUD_GAP) });
-      }
-
-      // Obstacles start after a short clear run, then spawn once the previous one has passed its gap.
-      if (runningTime > CLEAR_TIME) {
-        for (const o of obstacles) {
-          o.x -= (speed + o.speedOffset) * frames;
-          if (o.type.frames > 1) {
-            o.frameTime += delta;
-            if (o.frameTime >= o.type.frameRate) { o.frame = (o.frame + 1) % o.type.frames; o.frameTime = 0; }
-          }
-        }
-        obstacles = obstacles.filter((o) => o.x + o.type.width * o.size > 0);
-        const lastObstacle = obstacles[obstacles.length - 1];
-        if (!lastObstacle || lastObstacle.x + lastObstacle.type.width * lastObstacle.size + lastObstacle.gap < width) addObstacle();
-      }
-
-      distance += speed * frames;
-      if (speed < MAX_SPEED) speed += ACCELERATION * frames;
-
-      // Night mode flips the palette every 700 points, like the original.
-      const points = Math.round(distance * SCORE_COEFFICIENT);
-      if (points >= nextInvertAt) { setNight(!night); nextInvertAt += INVERT_DISTANCE; }
-      if (points !== shownScore) { shownScore = points; setScore(points); }
-
-      if (obstacles.some(hits)) {
-        crashed = true;
-        running = false;
-        startedRef.current = false;
-        setStarted(false);
-        setOver(true);
+    function drawRunner() {
+      const duck = ducking && grounded && !crashed;
+      const w = duck ? DUCK_W : PLAYER_W;
+      const legH = duck ? 3 : 6;
+      const feetY = GROUND - height;
+      // Slight stretch while rising, squash on landing.
+      const stretch = crashed ? 1 : !grounded ? 1 + Math.min(0.1, Math.abs(vy) / 6000) : squash > 0 ? 1 - squash * 0.9 : 1;
+      const bodyHeight = ((duck ? DUCK_H : PLAYER_H) - legH) * stretch;
+      const bodyTop = feetY - legH - bodyHeight;
+      const bodyWidth = w + (stretch < 1 ? (1 - stretch) * 14 : 0);
+      ctx.fillStyle = crashed ? MID : INK;
+      ctx.beginPath();
+      ctx.roundRect(PLAYER_X - (bodyWidth - w) / 2, bodyTop, bodyWidth, bodyHeight, 6);
+      ctx.fill();
+      // Legs alternate while running and tuck while airborne.
+      const lift = grounded && running && !duck ? Math.sin(runPhase) : 0;
+      const back = grounded || crashed ? (lift > 0 ? 2.5 : 0) : 3;
+      const front = grounded || crashed ? (lift > 0 ? 0 : 2.5) : 3;
+      ctx.fillStyle = SOFT;
+      ctx.fillRect(PLAYER_X + 4, feetY - legH - back, 5, legH);
+      ctx.fillRect(PLAYER_X + w - 10, feetY - legH - front, 5, legH);
+      // Visor on the side the runner is facing.
+      ctx.fillStyle = VOID;
+      ctx.beginPath();
+      ctx.roundRect(PLAYER_X + w - 14, bodyTop + (duck ? 2 : 5), 11, duck ? 6 : 8, 3);
+      ctx.fill();
+      if (crashed) {
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 1.5;
+        const ex = PLAYER_X + w - 11, ey = bodyTop + (duck ? 4 : 7);
+        ctx.beginPath();
+        ctx.moveTo(ex, ey); ctx.lineTo(ex + 5, ey + 4);
+        ctx.moveTo(ex + 5, ey); ctx.lineTo(ex, ey + 4);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = INK;
+        ctx.fillRect(PLAYER_X + w - 8, bodyTop + (duck ? 3.5 : 7), 4, 3);
       }
     }
 
     function draw() {
       ctx.clearRect(0, 0, width, HEIGHT);
-      for (const cloud of clouds) sprite(CLOUD, 0, CLOUD.width, CLOUD.height, cloud.x, cloud.y);
-      // The two 600px ground strips (flat and bumpy) tile across the canvas, however wide it is.
-      groundBumps.forEach((bump, i) => {
-        sprite(HORIZON, bump ? HORIZON.width : 0, HORIZON.width, HORIZON.height, groundOffset + i * HORIZON.width, HORIZON.yPos);
-      });
-      for (const o of obstacles) {
-        const w = o.type.width * o.size;
-        const art = obstacleArt.get(o.type.name)?.[o.frame];
-        if (art) {
-          const snap = (value: number) => Math.round(value * dpr) / dpr;
-          for (let k = 0; k < o.size; k++) ctx.drawImage(art, snap(o.x + k * o.type.width), snap(o.y), art.width / dpr, art.height / dpr);
-        } else if (o.type.sprite) {
-          const dx = o.type.frames > 1 ? o.type.width * o.frame : w * 0.5 * (o.size - 1);
-          sprite(o.type.sprite, dx, w, o.type.height, o.x, o.y);
+      // Background: a few faint dots drifting slowly for depth.
+      ctx.fillStyle = "rgba(255,255,255,0.14)";
+      for (const star of stars) {
+        const x = reduceMotion ? star.x : (((star.x - points * 2.2 * star.r) % width) + width) % width;
+        ctx.fillRect(x, star.y, star.r * 1.6, star.r * 1.6);
+      }
+      // Ground: a line, then scrolling dashes beneath it that give the feeling of speed.
+      ctx.fillStyle = MID;
+      ctx.fillRect(0, GROUND, width, 1.5);
+      ctx.fillStyle = DIM;
+      for (let x = groundOffset - 44; x < width; x += 44) {
+        ctx.fillRect(x, GROUND + 9, 16, 1.5);
+        ctx.fillRect(x + 22, GROUND + 19, 9, 1.5);
+      }
+      for (const item of items) {
+        if (item.kind === "plat") {
+          ctx.fillStyle = PANEL;
+          ctx.fillRect(item.x, GROUND - item.h, item.w, item.h);
+          ctx.fillStyle = SOFT;
+          ctx.fillRect(item.x, GROUND - item.h, item.w, 2);
+          ctx.fillStyle = DIM;
+          ctx.fillRect(item.x, GROUND - item.h, 1.5, item.h);
+        } else if (item.kind === "bar") {
+          const y = GROUND - BAR_BOTTOM - BAR_THICK;
+          ctx.fillStyle = SOFT;
+          ctx.fillRect(item.x, y, item.w, BAR_THICK);
+          ctx.fillStyle = VOID;
+          for (let x = item.x + 6; x < item.x + item.w - 4; x += 10) {
+            ctx.beginPath();
+            ctx.moveTo(x, y + BAR_THICK); ctx.lineTo(x + 3, y); ctx.lineTo(x + 6, y); ctx.lineTo(x + 3, y + BAR_THICK);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.fillStyle = INK;
+          ctx.fillRect(item.x, y - 3, 3, BAR_THICK + 6);
+          ctx.fillRect(item.x + item.w - 3, y - 3, 3, BAR_THICK + 6);
+        } else {
+          const baseY = GROUND - item.base;
+          ctx.fillStyle = item.big ? INK : SOFT;
+          ctx.beginPath();
+          for (let i = 0; i < item.n; i++) {
+            const sx = item.x + i * item.w;
+            ctx.moveTo(sx, baseY); ctx.lineTo(sx + item.w / 2, baseY - item.h); ctx.lineTo(sx + item.w, baseY);
+            ctx.closePath();
+          }
+          ctx.fill();
         }
       }
-      // T-Rex (kept for later):
-      // const frameX = crashed ? 220 : jumping ? 0 : ducking ? (runFrame ? 323 : 264) : running ? (runFrame ? 132 : 88) : 44;
-      // const trexWidth = ducking && !crashed && !jumping ? TREX.widthDuck : TREX.width;
-      // sprite(TREX.sprite, frameX, trexWidth, TREX.height, TREX.startX, playerY);
-      const pose: PlayerFrame = crashed ? "crash" : jumping ? "jump" : ducking ? (runFrame ? "duck2" : "duck1") : running ? (runFrame ? "run2" : "run1") : "stand";
-      const frame = playerFrames[pose];
-      if (frame) {
-        const snap = (value: number) => Math.round(value * dpr) / dpr;
-        const y = pose.startsWith("duck") ? playerY + duckOffset : playerY;
-        ctx.drawImage(frame, snap(PLAYER.startX), snap(y), frame.width / dpr, frame.height / dpr);
+      drawRunner();
+      ctx.fillStyle = INK;
+      for (const particle of particles) {
+        ctx.globalAlpha = Math.max(0, Math.min(1, particle.life * 2.2));
+        ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
       }
+      ctx.globalAlpha = 1;
     }
 
     function loop(now: number) {
-      const delta = Math.min(now - last, 100);
+      const delta = now - last;
       last = now;
-      if (running) update(reduceMotion ? Math.min(delta, MS_PER_FRAME) : delta);
+      if (running) update(delta);
+      if (particles.length) {
+        const dt = Math.min(delta, 50) / 1000;
+        for (const particle of particles) {
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+          particle.vy += 900 * dt;
+          particle.life -= dt;
+        }
+        particles = particles.filter((particle) => particle.life > 0);
+      }
       draw();
-      if (running) raf = requestAnimationFrame(loop);
+      if (running || particles.length) raf = requestAnimationFrame(loop);
     }
 
     const inView = () => {
@@ -637,11 +402,14 @@ export function RunnerGame() {
       return bounds.top < innerHeight && bounds.bottom > 0;
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!inView() || (event.target instanceof HTMLElement && event.target.closest("input, textarea"))) return;
+      if (!inView() || (event.target instanceof HTMLElement && event.target.closest("input, textarea, button, a, [role=dialog]"))) return;
       if (event.code === "Space" || event.code === "ArrowUp") {
-        if (!running) return;
+        // After a crash the same keys play again (after a beat, so a panicked key-mash doesn't skip the score
+        // screen); otherwise the page scrolls as usual until a run is under way.
+        if (!running && !crashed) return;
         event.preventDefault();
-        if (!event.repeat) startJump();
+        if (!running) { if (!event.repeat && performance.now() - crashedAt > RESTART_DELAY) reset(); }
+        else if (!event.repeat) startJump();
       } else if (event.code === "ArrowDown" && running) {
         event.preventDefault();
         setDuck(true);
@@ -649,10 +417,9 @@ export function RunnerGame() {
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.code === "Space" || event.code === "ArrowUp") endJump();
-      else if (event.code === "ArrowDown") { ducking = false; speedDrop = false; }
+      else if (event.code === "ArrowDown") setDuck(false);
     };
 
-    sheets[1].onload = sheets[2].onload = () => draw();
     size();
     addEventListener("resize", size);
     addEventListener("keydown", onKeyDown);
@@ -662,7 +429,6 @@ export function RunnerGame() {
       removeEventListener("resize", size);
       removeEventListener("keydown", onKeyDown);
       removeEventListener("keyup", onKeyUp);
-      sheets[1].onload = sheets[2].onload = null;
     };
   }, []);
 
@@ -696,10 +462,28 @@ export function RunnerGame() {
     setScoreSaved(false);
   };
 
+  // Touch: tap to jump, drag down to duck, lift to release.
+  const onPointerDown = (event: React.PointerEvent) => {
+    touchStartY.current = event.clientY;
+    if (startedRef.current) jumpRef.current();
+    else restartRef.current();
+  };
+  const onPointerMove = (event: React.PointerEvent) => {
+    if (touchStartY.current !== null && event.clientY - touchStartY.current > 24) duckRef.current(true);
+  };
+  const onPointerEnd = () => {
+    touchStartY.current = null;
+    releaseRef.current();
+    duckRef.current(false);
+  };
+
   return (
     <div className="relative select-none rounded-[10px] border bg-card p-4">
       <div className="relative z-30 flex items-center justify-between px-2 text-sm font-semibold text-muted-foreground">
-        <span>{started ? "SPACE / ↑ to jump · ↓ to duck" : over ? "Run it back?" : "Ready to run?"}</span>
+        <span>
+          <span className="pointer-coarse:hidden">SPACE / ↑ Jump · ↓ Duck</span>
+          <span className="hidden pointer-coarse:inline">Tap Jump · Swipe ↓ Duck</span>
+        </span>
         <div className="flex items-center gap-2">
           <span className="font-display text-lg text-foreground tabular-nums">{String(score).padStart(5, "0")}</span>
           <Dialog open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
@@ -732,12 +516,13 @@ export function RunnerGame() {
       </div>
       <canvas
         ref={ref}
-        onPointerDown={() => (startedRef.current ? jumpRef.current() : restartRef.current())}
-        onPointerUp={() => releaseRef.current()}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
         aria-label="Endless runner mini game"
-        className="runner-canvas mt-2 h-[150px] w-full cursor-pointer touch-none"
+        className="mt-2 h-[150px] w-full cursor-pointer touch-none rounded-lg bg-linear-to-b from-[#161617] to-[#0b0b0c]"
       />
-      <p className="px-2 pt-1 text-right text-[0.65rem] text-muted-foreground/70">Ground, clouds &amp; gameplay based on Chromium's T-Rex runner (BSD licence)</p>
       {!started && !over && (
         <div className="absolute inset-0 grid place-items-center rounded-[10px] bg-background/70 backdrop-blur-sm">
           <button onClick={() => restartRef.current()} className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground transition-transform hover:scale-105">
