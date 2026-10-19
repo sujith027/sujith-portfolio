@@ -111,7 +111,6 @@ export function RunnerGame() {
   const jumpRef = useRef<() => void>(() => {});
   const releaseRef = useRef<() => void>(() => {});
   const duckRef = useRef<(down: boolean) => void>(() => {});
-  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     try {
@@ -462,27 +461,24 @@ export function RunnerGame() {
     setScoreSaved(false);
   };
 
-  // Touch: tap to jump, drag down to duck, lift to release.
-  const onPointerDown = (event: React.PointerEvent) => {
-    touchStartY.current = event.clientY;
+  // Touch: tapping the game or the Jump pad jumps (lift to release); holding the Duck pad ducks.
+  const onPointerDown = () => {
     if (startedRef.current) jumpRef.current();
     else restartRef.current();
   };
-  const onPointerMove = (event: React.PointerEvent) => {
-    if (touchStartY.current !== null && event.clientY - touchStartY.current > 24) duckRef.current(true);
+  const onPointerEnd = () => releaseRef.current();
+  const onDuckDown = () => {
+    if (startedRef.current) duckRef.current(true);
+    else restartRef.current();
   };
-  const onPointerEnd = () => {
-    touchStartY.current = null;
-    releaseRef.current();
-    duckRef.current(false);
-  };
+  const onDuckEnd = () => duckRef.current(false);
 
   return (
     <div className="relative select-none rounded-[10px] border bg-card p-4">
       <div className="relative z-30 flex items-center justify-between px-2 text-sm font-semibold text-muted-foreground">
         <span>
           <span className="pointer-coarse:hidden">SPACE / ↑ Jump · ↓ Duck</span>
-          <span className="hidden pointer-coarse:inline">Tap Jump · Swipe ↓ Duck</span>
+          <span className="hidden pointer-coarse:inline">Tap Jump · Hold Duck</span>
         </span>
         <div className="flex items-center gap-2">
           <span className="font-display text-lg text-foreground tabular-nums">{String(score).padStart(5, "0")}</span>
@@ -517,12 +513,33 @@ export function RunnerGame() {
       <canvas
         ref={ref}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
         aria-label="Endless runner mini game"
         className="mt-2 h-[150px] w-full cursor-pointer touch-none rounded-lg bg-linear-to-b from-[#161617] to-[#0b0b0c]"
       />
+      {/* Phones: two big pads under the game so the thumbs never cover the action. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
+        <div
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
+          aria-hidden
+          className="grid h-28 touch-none place-items-center rounded-lg border border-dashed text-sm font-semibold text-muted-foreground active:bg-accent"
+        >
+          Jump ↑
+        </div>
+        <div
+          onPointerDown={onDuckDown}
+          onPointerUp={onDuckEnd}
+          onPointerCancel={onDuckEnd}
+          onPointerLeave={onDuckEnd}
+          aria-hidden
+          className="grid h-28 touch-none place-items-center rounded-lg border border-dashed text-sm font-semibold text-muted-foreground active:bg-accent"
+        >
+          Duck ↓ (hold)
+        </div>
+      </div>
       {!started && !over && (
         <div className="absolute inset-0 grid place-items-center rounded-[10px] bg-background/70 backdrop-blur-sm">
           <button onClick={() => restartRef.current()} className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground transition-transform hover:scale-105">
@@ -532,14 +549,14 @@ export function RunnerGame() {
         </div>
       )}
       {over && (
-        <div className="absolute inset-0 z-20 grid place-items-center rounded-[10px] bg-background/80 p-4 backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-0 top-12 z-20 grid place-items-center rounded-b-[10px] bg-background/80 p-3 backdrop-blur-sm md:top-0 md:rounded-[10px] md:p-4">
           <div className="w-full max-w-sm text-center animate-scale-in">
-            <p className="font-display text-3xl font-bold">Run over</p>
-            <p className="mt-1 text-muted-foreground">Score {score}</p>
+            <p className="font-display text-2xl font-bold md:text-3xl">Run over</p>
+            <p className="text-sm text-muted-foreground md:mt-1 md:text-base">Score {score}</p>
             {scoreSaved ? (
-              <p className="mt-3 text-sm font-semibold text-primary">Added to the leaderboard</p>
+              <p className="mt-4 text-sm font-semibold text-primary md:mt-3">Added to the leaderboard</p>
             ) : qualifies ? (
-              <form onSubmit={saveScore} className="mt-3 space-y-2">
+              <form onSubmit={saveScore} className="mt-4 space-y-2 md:mt-3">
                 <label className="sr-only" htmlFor="runner-player-name">Your name</label>
                 <div className="relative">
                   <input
@@ -550,7 +567,7 @@ export function RunnerGame() {
                     value={playerName}
                     onChange={(event) => setPlayerName(event.target.value)}
                     placeholder="Enter your name"
-                    className="h-10 w-full rounded-md border bg-background py-2 pl-3 pr-20 text-sm text-foreground placeholder:text-muted-foreground"
+                    className="h-9 w-full rounded-md border bg-background py-2 pl-3 pr-20 md:h-10 text-sm text-foreground placeholder:text-muted-foreground"
                   />
                   <button
                     type="submit"
@@ -564,9 +581,9 @@ export function RunnerGame() {
                 </div>
               </form>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Not in the top six this time.</p>
+              <p className="mt-4 text-sm text-muted-foreground md:mt-3">Not in the top six this time.</p>
             )}
-            <div className="mt-3 flex justify-center gap-2">
+            <div className="mt-5 flex justify-center gap-3 md:mt-3 md:gap-2">
               <Button type="button" onClick={() => restartRef.current()}>Retry ↻</Button>
               <Button type="button" variant="outline" onClick={exitGame}>Exit game</Button>
             </div>
