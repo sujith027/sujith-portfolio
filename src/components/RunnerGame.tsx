@@ -461,24 +461,19 @@ export function RunnerGame() {
     setScoreSaved(false);
   };
 
-  // Touch: tapping the game or the Jump pad jumps (lift to release); holding the Duck pad ducks.
+  // Touch: tapping the game or the pad below it jumps (lift to release). Ducking is keyboard-only for now.
   const onPointerDown = () => {
     if (startedRef.current) jumpRef.current();
     else restartRef.current();
   };
   const onPointerEnd = () => releaseRef.current();
-  const onDuckDown = () => {
-    if (startedRef.current) duckRef.current(true);
-    else restartRef.current();
-  };
-  const onDuckEnd = () => duckRef.current(false);
 
   return (
     <div className="relative select-none rounded-[10px] border bg-card p-4">
       <div className="relative z-30 flex items-center justify-between px-2 text-sm font-semibold text-muted-foreground">
         <span>
           <span className="pointer-coarse:hidden">SPACE / ↑ Jump · ↓ Duck</span>
-          <span className="hidden pointer-coarse:inline">Tap Jump · Hold Duck</span>
+          <span className="hidden pointer-coarse:inline">Tap to Jump</span>
         </span>
         <div className="flex items-center gap-2">
           <span className="font-display text-lg text-foreground tabular-nums">{String(score).padStart(5, "0")}</span>
@@ -518,27 +513,15 @@ export function RunnerGame() {
         aria-label="Endless runner mini game"
         className="mt-2 h-[150px] w-full cursor-pointer touch-none rounded-lg bg-linear-to-b from-[#161617] to-[#0b0b0c]"
       />
-      {/* Phones: two big pads under the game so the thumbs never cover the action. */}
-      <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
-        <div
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerEnd}
-          onPointerCancel={onPointerEnd}
-          aria-hidden
-          className="grid h-28 touch-none place-items-center rounded-lg border border-dashed text-sm font-semibold text-muted-foreground active:bg-accent"
-        >
-          Jump ↑
-        </div>
-        <div
-          onPointerDown={onDuckDown}
-          onPointerUp={onDuckEnd}
-          onPointerCancel={onDuckEnd}
-          onPointerLeave={onDuckEnd}
-          aria-hidden
-          className="grid h-28 touch-none place-items-center rounded-lg border border-dashed text-sm font-semibold text-muted-foreground active:bg-accent"
-        >
-          Duck ↓ (hold)
-        </div>
+      {/* Phones: a pad under the game so the thumb never covers the action. */}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        aria-hidden
+        className="mt-3 grid h-28 touch-none place-items-center rounded-lg border border-dashed text-xs font-semibold text-muted-foreground active:bg-accent md:hidden"
+      >
+        Tap here to jump
       </div>
       {!started && !over && (
         <div className="absolute inset-0 grid place-items-center rounded-[10px] bg-background/70 backdrop-blur-sm">
