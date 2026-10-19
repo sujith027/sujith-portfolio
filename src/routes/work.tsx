@@ -38,8 +38,8 @@ function WorkPage() {
       <section id="more-projects" className="mx-auto max-w-6xl scroll-mt-8 px-6 py-10">
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
-            <p className="font-semibold text-primary">Concepts</p>
-            <h2 className="mt-1 font-display text-3xl font-bold md:text-4xl">More projects</h2>
+            <h2 className="font-display text-3xl font-bold md:text-4xl">More Projects</h2>
+            <p className="mt-2 text-muted-foreground">Selected work created during my time at CocoGrid.</p>
           </div>
           <span className="hidden text-sm text-muted-foreground sm:block">{moreProjects.length} projects</span>
         </div>
