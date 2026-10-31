@@ -39,6 +39,7 @@
 }
 
 :root {
+  color-scheme: light; /* declared so Chrome/Brave auto-dark on phones never recolours the light theme */
   --radius: 1.25rem;
   --background: oklch(0.97 0 0);
   --foreground: oklch(0.145 0 0);
@@ -79,6 +80,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(1 0 0);
   --card: oklch(0.178 0 0);
