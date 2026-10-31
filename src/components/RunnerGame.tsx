@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Play, Save, Trophy } from "lucide-react";
+import { Check, Play, Save, Share2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +14,8 @@ type LeaderboardEntry = { name: string; score: number };
 
 const LEADERBOARD_KEY = "runner-leaderboard-v1";
 const LEADERBOARD_LIMIT = 6;
+// The leaderboard dialog and the name field are switched off for now; set to true to bring them back.
+const SHOW_LEADERBOARD = false;
 
 // A small geometric side-scroller: a block-bodied runner on a dark strip, hopping spikes, stepping onto raised
 // platforms and ducking under floating bars. Everything is vector shapes in one monochrome palette.
@@ -91,6 +93,14 @@ const pieceWidth = (piece: Piece) =>
 const itemWidth = (item: Item) => (item.kind === "spike" ? item.w * item.n : item.w);
 const randomBetween = (min: number, max: number) => min + Math.random() * (max - min);
 
+// A shared link carries one player's score (?beat=1240&by=Name) so the next visitor gets a target to beat.
+function readChallenge(): LeaderboardEntry | null {
+  const params = new URLSearchParams(window.location.search);
+  const score = Math.floor(Number(params.get("beat")));
+  if (!Number.isFinite(score) || score < 1 || score > 99999) return null;
+  return { name: (params.get("by") ?? "").trim().slice(0, 24) || "A friend", score };
+}
+
 function isLeaderboardEntry(value: unknown): value is LeaderboardEntry {
   if (typeof value !== "object" || value === null) return false;
   const entry = value as Record<string, unknown>;
@@ -106,11 +116,15 @@ export function RunnerGame() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [scoreSaved, setScoreSaved] = useState(false);
+  const [challenge, setChallenge] = useState<LeaderboardEntry | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const startedRef = useRef(false);
   const restartRef = useRef<() => void>(() => {});
   const jumpRef = useRef<() => void>(() => {});
   const releaseRef = useRef<() => void>(() => {});
   const duckRef = useRef<(down: boolean) => void>(() => {});
+
+  useEffect(() => { setChallenge(readChallenge()); }, []);
 
   useEffect(() => {
     try {
@@ -452,6 +466,21 @@ export function RunnerGame() {
     }
   };
 
+  const shareScore = async () => {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("beat", String(score));
+    url.searchParams.set("by", playerName.trim().slice(0, 24) || "A friend");
+    url.hash = "game";
+    const text = `I scored ${score} in the runner game on Sujith's portfolio. Can you beat it?`;
+    try {
+      if (navigator.share) await navigator.share({ title: "Beat my score", text, url: url.toString() });
+      else { await navigator.clipboard.writeText(`${text} ${url.toString()}`); setLinkCopied(true); window.setTimeout(() => setLinkCopied(false), 2000); }
+    } catch {
+      // Sharing was cancelled or clipboard access was blocked; nothing to do.
+    }
+  };
+
   const exitGame = () => {
     startedRef.current = false;
     setStarted(false);
@@ -469,15 +498,16 @@ export function RunnerGame() {
   const onPointerEnd = () => releaseRef.current();
 
   return (
-    <div className="relative select-none rounded-[10px] border bg-card p-4">
+    <div id="game" className="relative scroll-mt-24 select-none rounded-[10px] border bg-card p-4">
       <div className="relative z-30 flex items-center justify-between px-2 text-sm font-semibold text-muted-foreground">
         <span>
           <span className="pointer-coarse:hidden">SPACE / ↑ Jump · ↓ Duck</span>
           <span className="hidden pointer-coarse:inline">Tap to Jump</span>
+          {challenge && <span className="block text-xs text-foreground">Beat {challenge.name}: {challenge.score}</span>}
         </span>
         <div className="flex items-center gap-2">
           <span className="font-display text-lg text-foreground tabular-nums">{String(score).padStart(5, "0")}</span>
-          <Dialog open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
+          {SHOW_LEADERBOARD && <Dialog open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
             <DialogTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="Open leaderboard" title="Leaderboard">
                 <Trophy aria-hidden className="h-4 w-4" />
@@ -502,7 +532,7 @@ export function RunnerGame() {
                 <p className="py-4 text-center text-sm text-muted-foreground">No scores yet. Set the first record!</p>
               )}
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
       </div>
       <canvas
@@ -536,7 +566,12 @@ export function RunnerGame() {
           <div className="w-full max-w-sm text-center animate-scale-in">
             <p className="font-display text-2xl font-bold md:text-3xl">Run over</p>
             <p className="text-sm text-muted-foreground md:mt-1 md:text-base">Score {score}</p>
-            {scoreSaved ? (
+            {challenge && (
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {score > challenge.score ? `You beat ${challenge.name}'s ${challenge.score}!` : `${challenge.name}'s score: ${challenge.score}`}
+              </p>
+            )}
+            {!SHOW_LEADERBOARD ? null : scoreSaved ? (
               <p className="mt-4 text-sm font-semibold text-primary md:mt-3">Added to the leaderboard</p>
             ) : qualifies ? (
               <form onSubmit={saveScore} className="mt-4 space-y-2 md:mt-3">
@@ -568,6 +603,12 @@ export function RunnerGame() {
             )}
             <div className="mt-5 flex justify-center gap-3 md:mt-3 md:gap-2">
               <Button type="button" onClick={() => restartRef.current()}>Retry ↻</Button>
+              {score > 0 && (
+                <Button type="button" variant="outline" onClick={shareScore}>
+                  {linkCopied ? <Check aria-hidden className="h-4 w-4" /> : <Share2 aria-hidden className="h-4 w-4" />}
+                  {linkCopied ? "Link copied" : "Share"}
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={exitGame}>Exit game</Button>
             </div>
           </div>
