@@ -2,6 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +55,7 @@ function applyWithTransition(
   origin: { x: number; y: number },
   apply: () => void,
 ) {
-  if (!document.startViewTransition || window.innerWidth > 1800) {
+  if (!document.startViewTransition || window.innerWidth > 1800 || window.matchMedia("(pointer: coarse)").matches) {
     apply();
     return;
   }
@@ -85,7 +86,7 @@ function ThemeSwitch({ iconSize = 16, className }: ThemeSwitchProps) {
   const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     originRef.current = { x: e.clientX, y: e.clientY };
     const next = resolvedTheme === "dark" ? "light" : "dark";
-    applyWithTransition(originRef.current, () => setTheme(next));
+    applyWithTransition(originRef.current, () => flushSync(() => setTheme(next)));
   };
 
   const isDark = resolvedTheme === "dark";
