@@ -45,16 +45,19 @@ function WorkPage() {
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {moreProjects.map((project) => (
-            <a key={project.href} href={project.href} target="_blank" rel="noreferrer" className="group relative flex min-h-[320px] flex-col overflow-hidden rounded-2xl border bg-card p-6 shadow-soft transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-lift">
-              <span className="font-display text-sm font-bold text-muted-foreground">{project.number}</span>
-              <div aria-hidden="true" className="mt-4 h-1.5 w-14 rounded-full bg-foreground" />
-              <h3 className="mt-8 font-display text-2xl font-bold leading-tight">{project.title}</h3>
-              <p className="mt-1 font-display text-lg font-medium text-muted-foreground">{project.sub}</p>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{project.detail}</p>
-              <div className="mt-auto flex flex-wrap gap-2 pt-6">
-                {project.tags.map((tag) => (
-                  <span key={tag} className="rounded-full border border-foreground/10 bg-background/50 px-3 py-1 text-xs font-semibold">{tag}</span>
-                ))}
+            <a key={project.href} href={project.href} target="_blank" rel="noreferrer" className="group relative flex flex-col overflow-hidden rounded-2xl border bg-card shadow-soft transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-lift">
+              <div className="aspect-4/3 overflow-hidden bg-muted">
+                <img src={project.image} alt={`${project.title} thumbnail`} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              </div>
+              <div className="flex flex-1 flex-col p-6">
+                <h3 className="font-display text-2xl font-bold leading-tight">{project.title}</h3>
+                <p className="mt-1 font-display text-lg font-medium text-muted-foreground">{project.sub}</p>
+                <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{project.detail}</p>
+                <div className="mt-auto flex flex-wrap gap-2 pt-6">
+                  {project.tags.map((tag) => (
+                    <span key={tag} className="rounded-full border border-foreground/10 bg-background/50 px-3 py-1 text-xs font-semibold">{tag}</span>
+                  ))}
+                </div>
               </div>
               <span className="behance-hover-badge absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-full border border-white/70 bg-black/45 text-white shadow-soft backdrop-blur-sm">
                 <ExternalLink aria-hidden className="h-5 w-5 stroke-white" />

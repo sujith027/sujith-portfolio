@@ -1,6 +1,9 @@
 import dimensionThumbnail from "@/assets/Dimension Thumbnail.png";
 import keyboardThumbnail from "@/assets/3D Keyboard Thumbnail.png";
 import zentrixThumbnail from "@/assets/Zentrix Thumbnail.png";
+import riloThumbnail from "@/assets/Rilo Thumbnail.png";
+import novaThumbnail from "@/assets/Nova DS Thumbnail.png";
+import lumoThumbnail from "@/assets/Lumo Trip Thumbnail.png";
 
 export const EMAIL = "sujithspoojary274@gmail.com";
 export const LINKEDIN = "https://www.linkedin.com/in/sujithspoojary/";
@@ -43,6 +46,7 @@ export const moreProjects = [
   {
     number: "01",
     title: "Rilo",
+    image: riloThumbnail,
     sub: "AI Companion",
     detail: "Designed an intuitive AI companion experience focused on making everyday interactions with AI feel simple and natural.",
     tags: ["AI", "Mobile", "UI/UX"],
@@ -51,6 +55,7 @@ export const moreProjects = [
   {
     number: "02",
     title: "Nova Design System",
+    image: novaThumbnail,
     sub: "UI Design System",
     detail: "Built a flexible design system to bring consistency, scalability, and clarity across digital product experiences.",
     tags: ["Design System", "UI", "Components"],
@@ -59,6 +64,7 @@ export const moreProjects = [
   {
     number: "03",
     title: "LumoTrip",
+    image: lumoThumbnail,
     sub: "Travel Experience",
     detail: "Designed a travel companion that brings discovery, planning, and trip organization into one seamless experience.",
     tags: ["Travel", "Mobile", "UX"],
