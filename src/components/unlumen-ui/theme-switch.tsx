@@ -50,12 +50,25 @@ function MoonIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-// no-op fallback for browsers that don't support startViewTransition
+// Flip the class on <html> ourselves, so the visible theme changes at once whatever React or the browser's
+// view-transition support does next (next-themes then stores the choice and keeps its own state in step).
+function paintTheme(next: "dark" | "light") {
+  const root = document.documentElement;
+  root.classList.remove("dark", "light");
+  root.classList.add(next);
+  root.style.colorScheme = next;
+}
+
+// The circular reveal needs view transitions (Chromium only) and a pointer-driven desktop; elsewhere it just switches.
 function applyWithTransition(
   origin: { x: number; y: number },
-  apply: () => void,
+  next: "dark" | "light",
+  commit: () => void,
 ) {
-  if (!document.startViewTransition || window.innerWidth > 1800 || window.matchMedia("(pointer: coarse)").matches) {
+  const apply = () => { paintTheme(next); commit(); };
+  const roomy = window.innerWidth >= 768 && window.innerWidth <= 1800;
+  const pointerDriven = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (!document.startViewTransition || !roomy || !pointerDriven) {
     apply();
     return;
   }
@@ -67,7 +80,13 @@ function applyWithTransition(
   document.documentElement.style.setProperty("--vt-x", `${x}px`);
   document.documentElement.style.setProperty("--vt-y", `${y}px`);
   document.documentElement.style.setProperty("--vt-r", `${endRadius}px`);
-  document.startViewTransition(apply).ready.catch(() => {});
+  try {
+    const transition = document.startViewTransition(apply);
+    transition.ready.catch(() => {});
+    transition.finished.catch(() => {}).finally(() => paintTheme(next));
+  } catch {
+    apply();
+  }
 }
 
 interface ThemeSwitchProps {
@@ -85,8 +104,8 @@ function ThemeSwitch({ iconSize = 16, className }: ThemeSwitchProps) {
 
   const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     originRef.current = { x: e.clientX, y: e.clientY };
-    const next = resolvedTheme === "dark" ? "light" : "dark";
-    applyWithTransition(originRef.current, () => flushSync(() => setTheme(next)));
+    const next = document.documentElement.classList.contains("dark") ? "light" : "dark";
+    applyWithTransition(originRef.current, next, () => flushSync(() => setTheme(next)));
   };
 
   const isDark = resolvedTheme === "dark";
