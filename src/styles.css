@@ -335,9 +335,17 @@
 @keyframes orbit-arm { from { transform: translate(-50%, -50%) rotate(var(--a)); } to { transform: translate(-50%, -50%) rotate(calc(var(--a) + 360deg * var(--dir))); } }
 @keyframes orbit-upright { from { transform: rotate(calc(var(--a) * -1)); } to { transform: rotate(calc(var(--a) * -1 - 360deg * var(--dir))); } }
 .orbit-arm { transform: translate(-50%, -50%) rotate(var(--a)); animation: orbit-arm var(--d) linear infinite; will-change: transform; }
+/* Ring and orbit sizes come in two sets (--rm phone, --rd desktop); lap time likewise (--dm / --dd). Desktop = 640px and up. */
+.orbit-ring { width: calc(var(--rm) * 1%); height: calc(var(--rm) * 1%); }
+.orbit-arm { width: calc(var(--rm) * 2%); height: calc(var(--rm) * 2%); --d: var(--dm); }
+@media (min-width: 640px) {
+  .orbit-ring { width: calc(var(--rd) * 1%); height: calc(var(--rd) * 1%); }
+  .orbit-arm { width: calc(var(--rd) * 2%); height: calc(var(--rd) * 2%); --d: var(--dd); }
+}
 .orbit-upright { transform: rotate(calc(var(--a) * -1)); animation: orbit-upright var(--d) linear infinite; }
-/* Outer-ring badges: the arm only travels the two visible arcs (right: k..180-k, left: 180+k..360-k) and jumps across each
-   hidden stretch, so an icon that leaves the card comes back in on the other side. --k is the hidden half-angle. */
+/* Badges on rings wider than the card: the arm only travels the two visible arcs (right: k..180-k, left: 180+k..360-k) and
+   jumps across each stretch that is out of sight, so an icon that leaves the card comes back in on the other side. --k is
+   the skipped half-angle and --delay the starting offset, each with a phone (--km/--delm) and desktop (--kd/--deld) value. */
 @keyframes orbit-skip {
   0% { transform: translate(-50%, -50%) rotate(var(--k)); }
   49.99% { transform: translate(-50%, -50%) rotate(calc(180deg - var(--k))); }
@@ -352,8 +360,11 @@
   99.99% { transform: rotate(calc(var(--k) - 360deg)); }
   100% { transform: rotate(calc(var(--k) * -1 - 360deg)); }
 }
-.orbit-skip { animation: orbit-skip var(--d) linear var(--delay) infinite var(--ad); }
+.orbit-skip { --k: var(--km); --delay: var(--delm); animation: orbit-skip var(--d) linear var(--delay) infinite var(--ad); }
 .orbit-skip-upright { animation: orbit-skip-upright var(--d) linear var(--delay) infinite var(--ad); }
+@media (min-width: 640px) {
+  .orbit-skip { --k: var(--kd); --delay: var(--deld); }
+}
 @media (prefers-reduced-motion: reduce) {
   .orbit-arm, .orbit-upright, .orbit-skip, .orbit-skip-upright { animation: none; }
 }
