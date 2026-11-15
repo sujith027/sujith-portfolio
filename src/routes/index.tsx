@@ -126,7 +126,7 @@ function ScatterPill({ children }: { children: ReactNode }) {
 
 function About() {
   return (
-    <section id="about" className="mx-auto grid max-w-6xl gap-10 px-6 pt-8 pb-16 md:grid-cols-[1.4fr_1fr] md:items-center md:pt-28">
+    <section id="about" className="mx-auto grid max-w-6xl gap-10 px-6 pt-8 pb-6 md:grid-cols-[1.4fr_1fr] md:items-center md:pb-16 md:pt-28">
       <div className="reveal">
         <p className="font-semibold text-primary">About me</p>
         <h2 className="mt-2 text-4xl font-extrabold leading-[1.2] md:text-6xl">Design isn’t just<br /><span className="rounded-2xl bg-foreground px-3 text-background">on the screen.</span></h2>
