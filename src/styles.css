@@ -329,3 +329,31 @@
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   .sling-button__face { transform: none !important; transition: none; }
 }
+
+/* Tools orbit: each badge travels slowly around its own ring (the arm turns, the badge counter-rotates so the icon stays
+   upright). Rings never move. */
+@keyframes orbit-arm { from { transform: translate(-50%, -50%) rotate(var(--a)); } to { transform: translate(-50%, -50%) rotate(calc(var(--a) + 360deg * var(--dir))); } }
+@keyframes orbit-upright { from { transform: rotate(calc(var(--a) * -1)); } to { transform: rotate(calc(var(--a) * -1 - 360deg * var(--dir))); } }
+.orbit-arm { transform: translate(-50%, -50%) rotate(var(--a)); animation: orbit-arm var(--d) linear infinite; will-change: transform; }
+.orbit-upright { transform: rotate(calc(var(--a) * -1)); animation: orbit-upright var(--d) linear infinite; }
+/* Outer-ring badges: the arm only travels the two visible arcs (right: k..180-k, left: 180+k..360-k) and jumps across each
+   hidden stretch, so an icon that leaves the card comes back in on the other side. --k is the hidden half-angle. */
+@keyframes orbit-skip {
+  0% { transform: translate(-50%, -50%) rotate(var(--k)); }
+  49.99% { transform: translate(-50%, -50%) rotate(calc(180deg - var(--k))); }
+  50% { transform: translate(-50%, -50%) rotate(calc(180deg + var(--k))); }
+  99.99% { transform: translate(-50%, -50%) rotate(calc(360deg - var(--k))); }
+  100% { transform: translate(-50%, -50%) rotate(calc(360deg + var(--k))); }
+}
+@keyframes orbit-skip-upright {
+  0% { transform: rotate(calc(var(--k) * -1)); }
+  49.99% { transform: rotate(calc(var(--k) - 180deg)); }
+  50% { transform: rotate(calc(var(--k) * -1 - 180deg)); }
+  99.99% { transform: rotate(calc(var(--k) - 360deg)); }
+  100% { transform: rotate(calc(var(--k) * -1 - 360deg)); }
+}
+.orbit-skip { animation: orbit-skip var(--d) linear var(--delay) infinite var(--ad); }
+.orbit-skip-upright { animation: orbit-skip-upright var(--d) linear var(--delay) infinite var(--ad); }
+@media (prefers-reduced-motion: reduce) {
+  .orbit-arm, .orbit-upright, .orbit-skip, .orbit-skip-upright { animation: none; }
+}

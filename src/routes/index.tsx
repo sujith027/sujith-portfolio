@@ -7,9 +7,10 @@ import { RunnerGame } from "@/components/RunnerGame";
 import { SlingButton } from "@/components/SlingButton";
 import { ThemeSwitch } from "@/components/unlumen-ui/theme-switch";
 import { AboutStack } from "@/components/AboutStack";
+import { ToolsOrbit } from "@/components/ToolsOrbit";
 import { HeroPill } from "@/components/HeroPill";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { BEHANCE, EMAIL, LINKEDIN, experience, projects, skills, tools } from "@/components/portfolio-data";
+import { BEHANCE, EMAIL, LINKEDIN, experience, projects, skills } from "@/components/portfolio-data";
 import profileImage from "@/assets/profile image.jpg";
 import resumePdf from "@/assets/Resume.pdf";
 import sujithAvatar from "@/assets/sujith-avatar.webp";
@@ -46,6 +47,7 @@ function Index() {
       <Hero />
       <Projects />
       <About />
+      <Tools />
       <Experience />
       <WaveLoop />
       <Contact />
@@ -95,6 +97,19 @@ function Hero() {
   );
 }
 
+// Filled 24x24 glyphs (Material Icons, Apache-2.0) drawn like the brand marks: solid, in the primary colour.
+const skillIcons: Record<string, string> = {
+  "User Research": "M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z",
+  "UI Design": "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
+  "Interaction Design": "M21 3 3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z",
+  "Wireframing": "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+  "Prototyping": "M8 5v14l11-7z",
+  "User Flows": "M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z",
+  "UX Audits": "M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z",
+  "Vibe Coding": "M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z",
+  "Design-to-Code": "M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z",
+};
+
 function ScatterPill({ children }: { children: ReactNode }) {
   const [t, setT] = useState("");
   return (
@@ -111,7 +126,7 @@ function ScatterPill({ children }: { children: ReactNode }) {
 
 function About() {
   return (
-    <section id="about" className="mx-auto grid max-w-6xl gap-10 px-6 pt-8 pb-28 md:grid-cols-[1.4fr_1fr] md:pt-28">
+    <section id="about" className="mx-auto grid max-w-6xl gap-10 px-6 pt-8 pb-16 md:grid-cols-[1.4fr_1fr] md:items-center md:pt-28">
       <div className="reveal">
         <p className="font-semibold text-primary">About me</p>
         <h2 className="mt-2 text-4xl font-extrabold leading-[1.2] md:text-6xl">Design isn’t just<br /><span className="rounded-2xl bg-foreground px-3 text-background">on the screen.</span></h2>
@@ -119,18 +134,7 @@ function About() {
           It’s in the way we interact, decide, explore, and experience everyday life. I believe good design quietly shapes these moments. As a UI/UX designer, I’m interested in creating digital experiences that feel natural, purposeful, and worth remembering.
         </p>
         <h3 className="mt-10 text-sm font-bold uppercase tracking-widest text-muted-foreground">Skills</h3>
-        <div className="mt-4 flex flex-wrap gap-2">{skills.map((s) => <ScatterPill key={s}>{s}</ScatterPill>)}</div>
-        <h3 className="mt-8 text-sm font-bold uppercase tracking-widest text-muted-foreground">Tools</h3>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {tools.map((t) => (
-            <ScatterPill key={t.name}>
-              <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 shrink-0 fill-current text-primary">
-                <path d={t.path} fillRule={"evenOdd" in t ? "evenodd" : undefined} />
-              </svg>
-              {t.name}
-            </ScatterPill>
-          ))}
-        </div>
+        <div className="mt-4 flex flex-wrap gap-2">{skills.map((s) => { const d = skillIcons[s]; return <ScatterPill key={s}>{d && <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 shrink-0 fill-current text-primary"><path d={d} /></svg>}{s}</ScatterPill>; })}</div>
       </div>
       <aside className="reveal self-center py-6 md:py-0">
         <AboutStack
@@ -166,6 +170,15 @@ function About() {
           ]}
         />
       </aside>
+    </section>
+  );
+}
+
+function Tools() {
+  return (
+    <section id="tools" className="mx-auto block max-w-6xl px-6 pb-28 text-left">
+      <h3 className="reveal text-sm font-bold uppercase tracking-widest text-muted-foreground">Tools</h3>
+      <div className="reveal w-full"><ToolsOrbit /></div>
     </section>
   );
 }
@@ -225,7 +238,7 @@ function ProjectCard({ p, i }: { p: (typeof projects)[number]; i: number }) {
     ref.current!.style.transform = `perspective(900px) rotateY(${x * 10}deg) rotateX(${-y * 10}deg) translateY(-6px)`;
   };
   return (
-    <div className="reveal h-full min-h-[33.5rem]" style={{ transitionDelay: `${(i % 2) * 120}ms` }}>
+    <div className="reveal h-full min-h-[30rem]" style={{ transitionDelay: `${(i % 2) * 120}ms` }}>
       <a ref={ref} href={p.href} target="_blank" rel="noreferrer" aria-label={`${p.title} — view on Behance (opens in a new tab)`}
         onMouseMove={move} onMouseLeave={() => (ref.current!.style.transform = "")}
         className="group flex h-full w-full flex-col rounded-3xl border bg-card p-3 text-left shadow-soft transition-[transform,box-shadow] duration-300 ease-out hover:shadow-lift">
@@ -258,7 +271,7 @@ function Projects() {
         <div><p className="font-semibold text-primary">Selected work</p><h2 className="mt-2 text-4xl font-extrabold md:text-6xl">Projects ✦</h2></div>
         <p className="hidden text-muted-foreground md:block">03 featured projects</p>
       </div>
-      <div className="mt-12 grid auto-rows-fr gap-8 md:grid-cols-2">
+      <div className="mx-auto mt-12 grid max-w-5xl auto-rows-fr gap-8 md:grid-cols-2">
         {projects.slice(0, 3).map((p, i) => <ProjectCard key={p.title} p={p} i={i} />)}
       </div>
       <div className="mt-10 flex justify-center">
